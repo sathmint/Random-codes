@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D34_CSPRNG // TERMINAL</title>
+    <style>
+        :root {
+            --bg: #0a0e14;
+            --term-bg: #0d1117;
+            --green: #00ff66;
+            --dark-green: #008f39;
+            --cyan: #00e5ff;
+            --yellow: #ffcc00;
+            --red: #ff3355;
+            --gray: #6e7681;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--green);
+            font-family: 'Consolas', 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 10;
+        }
+        .terminal {
+            background-color: var(--term-bg);
+            border: 1px solid #30363d;
+            box-shadow: 0 0 30px rgba(0, 255, 102, 0.1);
+            border-radius: 8px;
+            width: 100%;
+            max-width: 720px;
+            overflow: hidden;
+        }
+        .header {
+            background: #161b22;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #30363d;
+        }
+        .dots { display: flex; gap: 8px; margin-right: 15px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; }
+        .dot.r { background: #ff5f56; }
+        .dot.y { background: #ffbd2e; }
+        .dot.g { background: #27c93f; }
+        .title { color: var(--gray); font-size: 13px; }
+        .body { padding: 20px; }
+        .ascii-logo {
+            color: var(--cyan);
+            font-size: 11px;
+            line-height: 1.15;
+            margin-bottom: 15px;
+            white-space: pre;
+            overflow-x: auto;
+            text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+        }
+        .info-line { margin-bottom: 6px; font-size: 14px; }
+        .status-val { color: var(--yellow); }
+        .log-box {
+            background: #06090d;
+            border: 1px solid #21262d;
+            height: 160px;
+            padding: 10px;
+            margin: 15px 0;
+            overflow-y: hidden;
+            font-size: 13px;
+            color: var(--dark-green);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .result-box {
+            border: 1px dashed #30363d;
+            padding: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: rgba(0, 255, 102, 0.02);
+        }
+        .code-display {
+            font-size: 38px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            color: var(--green);
+            text-shadow: 0 0 15px rgba(0, 255, 102, 0.6);
+            margin: 10px 0;
+        }
+        .code-placeholder { color: var(--gray); font-size: 16px; letter-spacing: 2px; }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        button {
+            background: #161b22;
+            color: var(--green);
+            border: 1px solid var(--dark-green);
+            padding: 12px;
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.15s;
+            border-radius: 4px;
+        }
+        button:hover:not(:disabled) {
+            background: var(--green);
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.4);
+        }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        button.btn-reset { border-color: #9e6a03; color: var(--yellow); }
+        button.btn-reset:hover:not(:disabled) { background: var(--yellow); color: #000; }
+        button.btn-exit { border-color: #8b1e2f; color: var(--red); }
+        button.btn-exit:hover:not(:disabled) { background: var(--red); color: #fff; }
+        .hint { margin-top: 15px; font-size: 12px; color: var(--gray); text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="terminal">
+    <div class="header">
+        <div class="dots">
+            <div class="dot r"></div>
+            <div class="dot y"></div>
+            <div class="dot g"></div>
+        </div>
+        <div class="title">root@d34-system:~# ./csprng_gen --digits=5</div>
+    </div>
+
+    <div class="body">
+        <div class="ascii-logo">
+  _____  ____  _  _          ____ _______ _____  
+
+ |  __ \|___ \| || |        / __ \__   __|  __ \ 
+ | |  | | __) | || |_      | |  | | | |  | |__) |
+ | |  | ||__ &lt;|__   _|     | |  | | | |  |  ___/ 
+ | |__| |___) |  | |       | |__| | | |  | |     
+ |_____/|____/   |_|  _____ \____/  |_|  |_|     
+                     |_____| (CSPRNG v2.5)
+        </div>
+
+        <div class="info-line">АЛГОРИТМ : <span style="color: var(--cyan);">WebCrypto CSPRNG (5-digit OTP + Anti-Pattern)</span></div>
+        <div class="info-line">СТАТУС   : <span id="status" class="status-val">ОЖИДАНИЕ КОМАНДЫ...</span></div>
+
+        <div class="log-box" id="logBox">
+            <div>> Система D34 инициализирована. Нажмите 1 для запуска...</div>
+        </div>
+
+        <div class="result-box">
+            <div style="font-size: 12px; color: var(--gray);">СГЕНЕРИРОВАННЫЙ КОД D34:</div>
+            <div id="codeDisplay" class="code-display code-placeholder">( НЕТ ДАННЫХ )</div>
+            <div id="subNote" style="font-size: 12px; color: var(--gray);">Не передавайте этот код третьим лицам!</div>
+        </div>
+
+        <div class="controls">
+            <button id="btnStart" onclick="startGen()">1 - НАЧАТЬ</button>
+            <button id="btnReset" class="btn-reset" onclick="resetGen()">2 - ЗАКОНЧИТЬ</button>
+            <button id="btnExit" class="btn-exit" onclick="exitApp()">3 - ВЫЙТИ</button>
+        </div>
+
+        <div class="hint">Управление: кликайте по кнопкам или нажимайте клавиши 1, 2, 3 на клавиатуре</div>
+    </div>
+</div>
+
+<script>
+    let isScanning = false;
+    const logBox = document.getElementById('logBox');
+    const statusEl = document.getElementById('status');
+    const codeDisplay = document.getElementById('codeDisplay');
+    const subNote = document.getElementById('subNote');
+    const btnStart = document.getElementById('btnStart');
+
+    function addLog(text, color = '#008f39') {
+        const line = document.createElement('div');
+        line.style.color = color;
+        line.textContent = text;
+        logBox.appendChild(line);
+        if (logBox.children.length > 8) {
+            logBox.removeChild(logBox.firstChild);
+        }
+    }
+
+    function generateCryptoCode() {
+        const array = new Uint32Array(1);
+        while (true) {
+            window.crypto.getRandomValues(array);
+            const num = array[0] % 100000;
+            const code = String(num).padStart(5, '0');
+            const isRepeat = /^(\d)\1{4}$/.test(code);
+            const isSeq = '01234567890987654321'.includes(code);
+            if (!isRepeat && !isSeq) return code;
+        }
+    }
+
+    function startGen() {
+        if (isScanning) return;
+        isScanning = true;
+        btnStart.disabled = true;
+        statusEl.textContent = 'ВЫПОЛНЯЕТСЯ ПОДБОР ЭНТРОПИИ...';
+        statusEl.style.color = '#00e5ff';
+        codeDisplay.className = 'code-display code-placeholder';
+        codeDisplay.textContent = '( ВЫЧИСЛЕНИЕ... )';
+
+        let step = 0;
+        const totalSteps = 30;
+
+        const interval = setInterval(() => {
+            const fake = String(Math.floor(Math.random() * 100000)).padStart(5, '0');
+            const hash = Math.random().toString(16).substring(2, 10).toUpperCase();
+            addLog(`(SCAN) ${fake} -> ENTROPY_HASH: 0x${hash}`);
+            step++;
+
+            if (step >= totalSteps) {
+                clearInterval(interval);
+                const finalCode = generateCryptoCode();
+                
+                codeDisplay.className = 'code-display';
+                codeDisplay.textContent = finalCode;
+                statusEl.textContent = 'КОД УСПЕШНО СГЕНЕРИРОВАН';
+                statusEl.style.color = '#00ff66';
+                
+                addLog(`[OK] Уникальный OTP-код получен: ${finalCode}`, '#00ff66');
+                isScanning = false;
+                btnStart.disabled = false;
+            }
+        }, 60);
+    }
+
+    function resetGen() {
+        if (isScanning) return;
+        codeDisplay.className = 'code-display code-placeholder';
+        codeDisplay.textContent = '( НЕТ ДАННЫХ )';
+        statusEl.textContent = 'СБРОШЕНО. ОЖИДАНИЕ...';
+        statusEl.style.color = '#ffcc00';
+        addLog('> Буфер очищен пользователем.', '#ffcc00');
+    }
+
+    function exitApp() {
+        if (isScanning) return;
+        statusEl.textContent = 'СЕССИЯ ЗАВЕРШЕНА';
+        statusEl.style.color = '#ff3355';
+        codeDisplay.className = 'code-display code-placeholder';
+        codeDisplay.textContent = '( ОТКЛЮЧЕНО )';
+        subNote.textContent = 'Терминал заблокирован. Обновите страницу для перезапуска.';
+        
+        addLog('[EXIT] Закрытие соединения с модулем энтропии...', '#ff3355');
+        document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === '1') startGen();
+        if (e.key === '2') resetGen();
+        if (e.key === '3') exitApp();
+    });
+</script>
+</body>
+</html>
